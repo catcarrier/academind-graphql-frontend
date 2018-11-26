@@ -23,7 +23,7 @@ class SinglePost extends Component {
       })
       .then(resData => {
 
-        console.log(resData)
+        // console.log(resData)
 
         this.setState({
           title: resData.post.title,
