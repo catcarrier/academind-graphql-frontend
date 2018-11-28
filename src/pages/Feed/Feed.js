@@ -22,7 +22,11 @@ class Feed extends Component {
   };
 
   componentDidMount() {
-    fetch('URL')
+    fetch('http://localhost:8080/auth/status', {
+      headers: {
+        Authorization: 'Bearer ' + this.props.token
+      }
+    })
       .then(res => {
         if (res.status !== 200) {
           throw new Error('Failed to fetch user status.');
@@ -118,7 +122,7 @@ class Feed extends Component {
     this.setState({
       editLoading: true
     });
-    
+
     // We are not using a form for our file upload, we
     // do it all in JS instead
     const formData = new FormData();
@@ -127,10 +131,10 @@ class Feed extends Component {
     formData.append('image', postData.image);
 
     let url = 'http://localhost:8080/feed/post';
-    let method='POST';
+    let method = 'POST';
     if (this.state.editPost) {
       url = 'http://localhost:8080/feed/post/' + this.state.editPost._id;
-      method='PUT';
+      method = 'PUT';
     }
 
     // Cannot use 'Content-Type':'application/json' here, as we are sending
@@ -141,6 +145,9 @@ class Feed extends Component {
       // headers: {
       //   'Content-Type':'application/json'
       // },
+      headers: {
+        Authorization: 'Bearer ' + this.props.token
+      },
       body: formData
     })
       .then(res => {
@@ -194,7 +201,10 @@ class Feed extends Component {
   deletePostHandler = postId => {
     this.setState({ postsLoading: true });
     fetch('http://localhost:8080/feed/post/' + postId, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        Authorization: 'Bearer ' + this.props.token
+      }
     })
       .then(res => {
         if (res.status !== 200 && res.status !== 201) {
@@ -203,7 +213,6 @@ class Feed extends Component {
         return res.json();
       })
       .then(resData => {
-        console.log(resData);
         this.setState(prevState => {
           const updatedPosts = prevState.posts.filter(p => p._id !== postId);
           return { posts: updatedPosts, postsLoading: false };
@@ -223,7 +232,7 @@ class Feed extends Component {
     this.setState({ error: error });
   };
 
-  render() {
+  render() {    
     return (
       <Fragment>
         <ErrorHandler error={this.state.error} onHandle={this.errorHandler} />
