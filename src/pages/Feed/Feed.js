@@ -39,6 +39,7 @@ class Feed extends Component {
       .catch(this.catchError);
 
     this.loadPosts();
+    openSocket('http://localhost:8080');
   }
 
   loadPosts = direction => {
