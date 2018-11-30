@@ -39,8 +39,70 @@ class Feed extends Component {
       .catch(this.catchError);
 
     this.loadPosts();
-    openSocket('http://localhost:8080');
+    const socket = openSocket('http://localhost:8080');
+    socket.on('posts', data => {
+      if (data.action === 'create') {
+        this.addPost(data.post);
+      } else if (data.action==='update') {
+        this.updatePost(data.post);
+      } else if (data.action==='remove') {
+        this.removePost(data._id);
+      }
+
+    })
   }
+
+  addPost = post => {
+    this.setState(prevState => {
+      const updatedPosts = [...prevState.posts];
+
+      // If the user is on the first page of data, pop off the last
+      // post and insert the new one at position 0. The user will 
+      // see the new post.
+      if (prevState.postPage === 1) {
+        updatedPosts.pop();
+        updatedPosts.unshift(post);
+      }
+      return {
+        posts: updatedPosts,
+        totalPosts: prevState.totalPosts + 1
+      }
+    })
+  }
+
+  updatePost = post => {
+    this.setState(prevState => {
+      const updatedPosts = [...prevState.posts];
+      var index = updatedPosts.findIndex( e => e._id === post._id);
+      if(index > -1) {
+        updatedPosts.splice(index, 1, post);
+      }
+      return {
+        posts: updatedPosts,
+        totalPosts: prevState.totalPosts
+      }
+    })
+  }
+
+  removePost = postId => {
+    this.setState(prevState => {
+
+      // is the deleted post in-scope for the current state?
+      var index = prevState.posts.findIndex(p => p._id === postId);
+
+      if(index > -1) {
+        const updatedPosts = [...prevState.posts];
+        updatedPosts.splice(index, 1);
+        return {
+          posts: updatedPosts,
+          totalPosts: prevState.totalPosts-1
+        }
+      } else {
+        return prevState;
+      }
+    })
+  }
+
 
   loadPosts = direction => {
     if (direction) {
@@ -93,10 +155,10 @@ class Feed extends Component {
     fetch('http://localhost:8080/auth/status', {
       headers: {
         Authorization: 'Bearer ' + this.props.token,
-        'Content-Type':'application/json'
+        'Content-Type': 'application/json'
       },
       method: 'POST',
-      body: JSON.stringify({status: this.state.status})
+      body: JSON.stringify({ status: this.state.status })
     })
       .then(res => {
         if (res.status !== 200 && res.status !== 201) {
@@ -169,7 +231,6 @@ class Feed extends Component {
         return res.json();
       })
       .then(resData => {
-        console.log(resData);
         const post = {
           _id: resData.post._id,
           title: resData.post.title,
@@ -178,17 +239,7 @@ class Feed extends Component {
           createdAt: resData.post.createdAt
         };
         this.setState(prevState => {
-          let updatedPosts = [...prevState.posts];
-          if (prevState.editPost) {
-            const postIndex = prevState.posts.findIndex(
-              p => p._id === prevState.editPost._id
-            );
-            updatedPosts[postIndex] = post;
-          } else if (prevState.posts.length < 2) {
-            updatedPosts = prevState.posts.concat(post);
-          }
           return {
-            posts: updatedPosts,
             isEditing: false,
             editPost: null,
             editLoading: false
@@ -196,7 +247,6 @@ class Feed extends Component {
         });
       })
       .catch(err => {
-        console.log(err);
         this.setState({
           isEditing: false,
           editPost: null,
@@ -244,7 +294,7 @@ class Feed extends Component {
     this.setState({ error: error });
   };
 
-  render() {    
+  render() {
     return (
       <Fragment>
         <ErrorHandler error={this.state.error} onHandle={this.errorHandler} />
