@@ -231,13 +231,13 @@ class Feed extends Component {
         return res.json();
       })
       .then(resData => {
-        const post = {
-          _id: resData.post._id,
-          title: resData.post.title,
-          content: resData.post.content,
-          creator: resData.post.creator,
-          createdAt: resData.post.createdAt
-        };
+        // const post = {
+        //   _id: resData.post._id,
+        //   title: resData.post.title,
+        //   content: resData.post.content,
+        //   creator: resData.post.creator,
+        //   createdAt: resData.post.createdAt
+        // };
         this.setState(prevState => {
           return {
             isEditing: false,
@@ -275,10 +275,13 @@ class Feed extends Component {
         return res.json();
       })
       .then(resData => {
-        this.setState(prevState => {
-          const updatedPosts = prevState.posts.filter(p => p._id !== postId);
-          return { posts: updatedPosts, postsLoading: false };
-        });
+        this.loadPosts();
+
+        // Could also do this:
+        // this.setState(prevState => {
+        //   const updatedPosts = prevState.posts.filter(p => p._id !== postId);
+        //   return { posts: updatedPosts, postsLoading: false };
+        // });
       })
       .catch(err => {
         console.log(err);
