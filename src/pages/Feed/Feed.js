@@ -79,29 +79,47 @@ class Feed extends Component {
       this.setState({ postPage: page });
     }
 
-    // TEST - omit the auth header
-    // fetch('http://localhost:8080/feed/posts?page=' + page)
+    const graphQuery = {
+      query: `{
+        getPosts(currentPage:${page}) {
+          totalPosts
+          posts {
+            _id
+            title
+            content
+            creator {name}
+            createdAt
+          }
+        }
+      }`
+    };
 
-    fetch('http://localhost:8080/feed/posts?page=' + page, {
-      headers: {
-        Authorization: 'Bearer ' + this.props.token
-      }
+    fetch('http://localhost:8080/graphql', {
+      headers: {   
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type':'application/json'
+      },
+      method:'POST',
+      body: JSON.stringify(graphQuery)
     })
       .then(res => {
-        if (res.status !== 200) {
-          throw new Error('Failed to fetch posts.');
-        }
         return res.json();
       })
       .then(resData => {
+        //console.log(resData)
+        // TODO if error...
+        if(resData.errors) {
+          throw new Error('Fetching posts failed!')
+        }
+
         this.setState({
-          posts: resData.posts.map(post => {
+          posts: resData.data.getPosts.posts.map(post => {
             return {
               ...post,
               imagePath: post.imageUrl
             }
           }),
-          totalPosts: resData.totalItems,
+          totalPosts: resData.data.getPosts.totalPosts,
           postsLoading: false
         });
       })
@@ -165,42 +183,61 @@ class Feed extends Component {
     formData.append('content', postData.content);
     formData.append('image', postData.image);
 
-    let url = 'http://localhost:8080/feed/post';
-    let method = 'POST';
-    if (this.state.editPost) {
-      url = 'http://localhost:8080/feed/post/' + this.state.editPost._id;
-      method = 'PUT';
+    let graphQuery = {
+      query: `
+        mutation {
+          createPost(postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "abc"}) {
+            _id
+            title
+            content
+            imageUrl
+            creator {name}
+            createdAt
+          }
+      }
+      `
     }
 
-    // Cannot use 'Content-Type':'application/json' here, as we are sending
-    // a file attachment. The FormData object will set the Content-Type
-    // header for us. And for the body we just pass the FormData object.
-    fetch(url, {
-      method: method,
-      // headers: {
-      //   'Content-Type':'application/json'
-      // },
+    fetch('http://localhost:8080/graphql', {
+      method: 'POST',
       headers: {
-        Authorization: 'Bearer ' + this.props.token
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
       },
-      body: formData
+      body: JSON.stringify(graphQuery)
     })
-      .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error('Creating or editing a post failed!');
-        }
-        return res.json();
-      })
-      .then(resData => {
-        // const post = {
-        //   _id: resData.post._id,
-        //   title: resData.post.title,
-        //   content: resData.post.content,
-        //   creator: resData.post.creator,
-        //   createdAt: resData.post.createdAt
-        // };
+    .then(res => {
+      return res.json();
+    })
+    .then(resData => {
+      if (resData.errors) {
+        throw new Error("Login failed.");
+      }
+      return resData;
+    })
+    .then(resData => {
+      //console.log(resData)
+        const post = {
+          _id: resData.data.createPost._id,
+          title: resData.data.createPost.title,
+          content: resData.data.createPost.content,
+          creator: resData.data.createPost.creator.name,
+          createdAt: resData.data.createPost.createdAt
+        };
         this.setState(prevState => {
+          let updatedPosts = [...prevState.posts];
+          if(prevState.editPost) {
+            const postIndex = prevState.posts.findIndex(p => p._id === prevState.editPost._id);
+            updatedPosts[postIndex]=post;
+          } else {
+            // Remove last element and add the new one as the first element.
+            // The new post will appear on the page, but the total number
+            // on the page will remain the same.
+            updatedPosts.pop();
+            updatedPosts.unshift(post);
+          }
           return {
+            posts:updatedPosts,
             isEditing: false,
             editPost: null,
             editLoading: false
@@ -301,7 +338,7 @@ class Feed extends Component {
             <Paginator
               onPrevious={this.loadPosts.bind(this, 'previous')}
               onNext={this.loadPosts.bind(this, 'next')}
-              lastPage={Math.ceil(this.state.totalPosts / 2)}
+              lastPage={Math.ceil(this.state.totalPosts / 3)}
               currentPage={this.state.postPage}
             >
               {this.state.posts.map(post => (

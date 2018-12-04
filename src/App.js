@@ -82,22 +82,20 @@ class App extends Component {
         return res.json();
       })
       .then(resData => {
-        console.log(resData)
         if (resData.errors) {
-          throw new Error("User creation failed.");
+          throw new Error("Login failed.");
         }
         return resData;
       })
       .then(resData => {
-
         this.setState({
           isAuth: true,
-          token: resData.token,
+          token: resData.data.login.token,
           authLoading: false,
-          userId: resData.userId
+          userId: resData.data.login.userId
         });
-        localStorage.setItem('token', resData.token);
-        localStorage.setItem('userId', resData.userId);
+        localStorage.setItem('token', resData.data.login.token);
+        localStorage.setItem('userId', resData.data.login.userId);
 
         // Hard coded expiry of one hour on the client side
         const remainingMilliseconds = 60 * 60 * 1000;
@@ -127,9 +125,9 @@ class App extends Component {
       query: `
         mutation {
           createUser(userInput: {email: "${email}", name: "${name}", password: "${password}"}) {
-          _id
-        }
-      }`
+            _id
+          }
+        }`
     };
     fetch('http://localhost:8080/graphql', {
       method: 'POST',
