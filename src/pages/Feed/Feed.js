@@ -38,12 +38,12 @@ class Feed extends Component {
       .catch(this.catchError);
 
     this.loadPosts();
-    
+
   }
 
-  
 
-  
+
+
 
   removePost = postId => {
     this.setState(prevState => {
@@ -51,12 +51,12 @@ class Feed extends Component {
       // is the deleted post in-scope for the current state?
       var index = prevState.posts.findIndex(p => p._id === postId);
 
-      if(index > -1) {
+      if (index > -1) {
         const updatedPosts = [...prevState.posts];
         updatedPosts.splice(index, 1);
         return {
           posts: updatedPosts,
-          totalPosts: prevState.totalPosts-1
+          totalPosts: prevState.totalPosts - 1
         }
       } else {
         return prevState;
@@ -87,6 +87,7 @@ class Feed extends Component {
             _id
             title
             content
+            imageUrl
             creator {name}
             createdAt
           }
@@ -95,23 +96,20 @@ class Feed extends Component {
     };
 
     fetch('http://localhost:8080/graphql', {
-      headers: {   
+      headers: {
         Authorization: 'Bearer ' + this.props.token,
-        'Content-Type':'application/json'
+        'Content-Type': 'application/json'
       },
-      method:'POST',
+      method: 'POST',
       body: JSON.stringify(graphQuery)
     })
       .then(res => {
         return res.json();
       })
       .then(resData => {
-        //console.log(resData)
-        // TODO if error...
-        if(resData.errors) {
+        if (resData.errors) {
           throw new Error('Fetching posts failed!')
         }
-
         this.setState({
           posts: resData.data.getPosts.posts.map(post => {
             return {
@@ -176,17 +174,38 @@ class Feed extends Component {
       editLoading: true
     });
 
-    // We are not using a form for our file upload, we
-    // do it all in JS instead
-    const formData = new FormData();
-    formData.append('title', postData.title);
-    formData.append('content', postData.content);
-    formData.append('image', postData.image);
+    // We are using graphql for our title, content etc, see below.
+    // However Graphql handles only json, and we need to do a file upload 
+    // for the image. For this we use a FormData to mimic a fileupload control.
+    // Here we send the user's selected image via PUT, and get back the 
+    // resulting path, which we then send to graphql with the rest of the fields.
 
-    let graphQuery = {
-      query: `
+    const formData = new FormData();
+    formData.append('image', postData.image);
+    if (this.state.editPost) {
+      formData.append('oldPath', this.state.editPost.imagePath);
+    }
+
+    fetch('http://localhost:8080/postImage', {
+      method: 'PUT',
+      headers: {
+        Authorization: 'Bearer ' + this.props.token
+      },
+      body: formData
+    })
+      .then(res => {
+        return res.json();
+      })
+      .then(resData => {
+        // Get the path to the saved image. We will include this in the query, next.
+        // graphql will not accept query containing double backslash. Here we double up
+        // on the backslash.
+        const imageUrl = resData.filePath.replace('\\','\\\\');
+
+        let graphQuery = {
+          query: `
         mutation {
-          createPost(postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "abc"}) {
+          createPost(postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "${imageUrl}"}) {
             _id
             title
             content
@@ -196,39 +215,41 @@ class Feed extends Component {
           }
       }
       `
-    }
+        }
 
-    fetch('http://localhost:8080/graphql', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + this.props.token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(graphQuery)
-    })
-    .then(res => {
-      return res.json();
-    })
-    .then(resData => {
-      if (resData.errors) {
-        throw new Error("Login failed.");
-      }
-      return resData;
-    })
-    .then(resData => {
-      //console.log(resData)
+        return fetch('http://localhost:8080/graphql', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer ' + this.props.token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(graphQuery)
+        })
+
+      })
+      .then(res => {
+        return res.json();
+      })
+      .then(resData => {
+        if (resData.errors) {
+          throw new Error("Login failed.");
+        }
+        return resData;
+      })
+      .then(resData => {
         const post = {
           _id: resData.data.createPost._id,
           title: resData.data.createPost.title,
           content: resData.data.createPost.content,
+          imagePath: resData.data.createPost.imageUrl,
           creator: resData.data.createPost.creator.name,
           createdAt: resData.data.createPost.createdAt
         };
         this.setState(prevState => {
           let updatedPosts = [...prevState.posts];
-          if(prevState.editPost) {
+          if (prevState.editPost) {
             const postIndex = prevState.posts.findIndex(p => p._id === prevState.editPost._id);
-            updatedPosts[postIndex]=post;
+            updatedPosts[postIndex] = post;
           } else {
             // Remove last element and add the new one as the first element.
             // The new post will appear on the page, but the total number
@@ -237,7 +258,7 @@ class Feed extends Component {
             updatedPosts.unshift(post);
           }
           return {
-            posts:updatedPosts,
+            posts: updatedPosts,
             isEditing: false,
             editPost: null,
             editLoading: false

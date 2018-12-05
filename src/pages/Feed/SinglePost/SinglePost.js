@@ -14,27 +14,43 @@ class SinglePost extends Component {
 
   componentDidMount() {
     const postId = this.props.match.params.postId;
-    fetch('http://localhost:8080/feed/post/' + postId, {
+    
+    const graphQuery = {
+      query: `{
+        getPost(id:"${postId}") {
+          _id
+          title
+          content
+          imageUrl
+          creator {name}
+          createdAt
+        }
+      }`
+    };
+
+    fetch('http://localhost:8080/graphql', {
       headers: {
-        Authorization: 'Bearer ' + this.props.token
-      }
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type':'application/json'
+      },
+      method:'POST',
+      body: JSON.stringify(graphQuery)
     })
       .then(res => {
-        if (res.status !== 200) {
-          throw new Error('Failed to fetch status');
-        }
         return res.json();
       })
       .then(resData => {
-
-        // console.log(resData)
+        if (resData.errors) {
+          console.log(resData.errors);
+          throw new Error('Fetching posts failed!')
+        }
 
         this.setState({
-          title: resData.post.title,
-          author: resData.post.creator.name,
-          image: 'http://localhost:8080/' + resData.post.imageUrl,
-          date: new Date(resData.post.createdAt).toLocaleDateString('en-US'),
-          content: resData.post.content
+          title: resData.data.getPost.title,
+          author: resData.data.getPost.creator.name,
+          image: 'http://localhost:8080/' + resData.data.getPost.imageUrl.replace(/\\/g, '/'),
+          date: new Date(resData.data.getPost.createdAt).toLocaleDateString('en-US'),
+          content: resData.data.getPost.content
         });
       })
       .catch(err => {
