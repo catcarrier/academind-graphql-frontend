@@ -21,29 +21,35 @@ class Feed extends Component {
   };
 
   componentDidMount() {
-    fetch('http://localhost:8080/auth/status', {
+    // fetch user status via graphql
+    const graphQuery = {
+      query: `query {
+        getUserStatus
+      }`
+    };
+
+    fetch('http://localhost:8080/graphql', {
       headers: {
-        Authorization: 'Bearer ' + this.props.token
-      }
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      method: 'POST',
+      body: JSON.stringify(graphQuery)
     })
       .then(res => {
-        if (res.status !== 200) {
-          throw new Error('Failed to fetch user status.');
-        }
         return res.json();
       })
       .then(resData => {
-        this.setState({ status: resData.status });
+        if(resData.errors) {
+          throw new Error('Unable to fetch user status');
+        }
+        this.setState({ status: resData.data.getUserStatus });
       })
       .catch(this.catchError);
 
     this.loadPosts();
 
   }
-
-
-
-
 
   removePost = postId => {
     this.setState(prevState => {
@@ -127,25 +133,29 @@ class Feed extends Component {
   statusUpdateHandler = event => {
     event.preventDefault();
 
-    //console.log(this.state.status)
+    const graphQuery = {
+      query: `mutation {
+          setUserStatus(newStatus:"${this.state.status}")
+        }`
+    };
 
-    fetch('http://localhost:8080/auth/status', {
+    fetch('http://localhost:8080/graphql', {
       headers: {
         Authorization: 'Bearer ' + this.props.token,
         'Content-Type': 'application/json'
       },
       method: 'POST',
-      body: JSON.stringify({ status: this.state.status })
+      body: JSON.stringify(graphQuery)
     })
       .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error("Can't update status!");
-        }
         return res.json();
       })
       .then(resData => {
-        console.log(resData);
-        this.setState({ status: resData.status });
+        if(resData.errors){
+          console.log(resData)
+          throw new Error('Unable to update user status!');
+        }
+        this.setState({ status: resData.data.setUserStatus });
       })
       .catch(this.catchError);
   };
@@ -201,7 +211,7 @@ class Feed extends Component {
         // graphql will not accept query containing double backslash. Here we double up
         // on the backslash.
         let imageUrl = '';
-        if(resData.filePath){
+        if (resData.filePath) {
           imageUrl = resData.filePath.replace('\\', '\\\\');
         }
 
@@ -240,8 +250,6 @@ class Feed extends Component {
           } // graphquery
         } // else
 
-console.log(graphQuery)
-
         return fetch('http://localhost:8080/graphql', {
           method: 'POST',
           headers: {
@@ -262,13 +270,20 @@ console.log(graphQuery)
         return resData;
       })
       .then(resData => {
+        // If we were creating a post, the response data path is resData.data.createPost.
+        // If we were updating a post the dat path is resData.data.updatePost.
+        let resDataField = 'createPost';
+        if (this.state.editPost) {
+          resDataField = 'updatePost';
+        }
+
         const post = {
-          _id: resData.data.createPost._id,
-          title: resData.data.createPost.title,
-          content: resData.data.createPost.content,
-          imagePath: resData.data.createPost.imageUrl,
-          creator: resData.data.createPost.creator.name,
-          createdAt: resData.data.createPost.createdAt
+          _id: resData.data[resDataField]._id,
+          title: resData.data[resDataField].title,
+          content: resData.data[resDataField].content,
+          imagePath: resData.data[resDataField].imageUrl,
+          creator: resData.data[resDataField].creator.name,
+          createdAt: resData.data[resDataField].createdAt
         };
         this.setState(prevState => {
           let updatedPosts = [...prevState.posts];
@@ -279,7 +294,10 @@ console.log(graphQuery)
             // Remove last element and add the new one as the first element.
             // The new post will appear on the page, but the total number
             // on the page will remain the same.
-            updatedPosts.pop();
+            // Note the hard coded page size of 3.
+            if (prevState.posts.length >= 3) {
+              updatedPosts.pop();
+            }
             updatedPosts.unshift(post);
           }
           return {
@@ -306,19 +324,32 @@ console.log(graphQuery)
 
   deletePostHandler = postId => {
     this.setState({ postsLoading: true });
-    fetch('http://localhost:8080/feed/post/' + postId, {
-      method: 'DELETE',
-      headers: {
-        Authorization: 'Bearer ' + this.props.token
+
+    const graphQuery = {
+      query: `
+      mutation {
+        deletePost(id:"${postId}"){
+          _id
+        }
       }
+    `};
+
+    fetch('http://localhost:8080/graphql/', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(graphQuery)
     })
       .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error('Deleting a post failed!');
-        }
         return res.json();
       })
       .then(resData => {
+        if (resData.errors) {
+          console.log(resData.errors);
+          throw new Error('Deleting the post failed!');
+        }
         this.loadPosts();
 
         // Could also do this:
