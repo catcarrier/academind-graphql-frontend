@@ -200,22 +200,47 @@ class Feed extends Component {
         // Get the path to the saved image. We will include this in the query, next.
         // graphql will not accept query containing double backslash. Here we double up
         // on the backslash.
-        const imageUrl = resData.filePath.replace('\\','\\\\');
-
-        let graphQuery = {
-          query: `
-        mutation {
-          createPost(postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "${imageUrl}"}) {
-            _id
-            title
-            content
-            imageUrl
-            creator {name}
-            createdAt
-          }
-      }
-      `
+        let imageUrl = '';
+        if(resData.filePath){
+          imageUrl = resData.filePath.replace('\\', '\\\\');
         }
+
+        let graphQuery;
+
+        if (this.state.editPost) {
+          graphQuery = {
+            query: `
+            mutation {
+              updatePost(id: "${this.state.editPost._id}", postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "${imageUrl}"}) {
+                _id
+                title
+                content
+                imageUrl
+                creator {name}
+                createdAt
+              }
+          }
+          `
+          }; // graphquery
+        } else {
+          graphQuery = {
+            query: `mutation {
+                      createPost(postInput: {
+                        title: "${postData.title}", 
+                        content: "${postData.content}", 
+                        imageUrl: "${imageUrl}"}) {
+                          _id
+                          title
+                          content
+                          imageUrl
+                          creator {name}
+                          createdAt
+                      }
+                    }`
+          } // graphquery
+        } // else
+
+console.log(graphQuery)
 
         return fetch('http://localhost:8080/graphql', {
           method: 'POST',
