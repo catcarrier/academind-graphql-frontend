@@ -24,7 +24,7 @@ class Feed extends Component {
     // fetch user status via graphql
     const graphQuery = {
       query: `query {
-        getUserStatus
+        getUser {status}
       }`
     };
 
@@ -41,9 +41,10 @@ class Feed extends Component {
       })
       .then(resData => {
         if(resData.errors) {
+          console.log(resData)
           throw new Error('Unable to fetch user status');
         }
-        this.setState({ status: resData.data.getUserStatus });
+        this.setState({ status: resData.data.getUser.status });
       })
       .catch(this.catchError);
 
