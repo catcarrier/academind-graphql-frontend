@@ -40,7 +40,7 @@ class Feed extends Component {
         return res.json();
       })
       .then(resData => {
-        if(resData.errors) {
+        if (resData.errors) {
           console.log(resData)
           throw new Error('Unable to fetch user status');
         }
@@ -87,19 +87,21 @@ class Feed extends Component {
     }
 
     const graphQuery = {
-      query: `{
-        getPosts(currentPage:${page}) {
-          totalPosts
-          posts {
-            _id
-            title
-            content
-            imageUrl
-            creator {name}
-            createdAt
-          }
+      query: `
+        query FetchPosts($page: Int!) {
+          getPosts(currentPage:$page) {
+            totalPosts
+            posts {
+              _id
+              title
+              content
+              imageUrl
+              creator {name}
+              createdAt
+            }
         }
-      }`
+        }`,
+      variables: { page: page }
     };
 
     fetch('http://localhost:8080/graphql', {
@@ -115,6 +117,7 @@ class Feed extends Component {
       })
       .then(resData => {
         if (resData.errors) {
+          console.log(resData)
           throw new Error('Fetching posts failed!')
         }
         this.setState({
@@ -135,9 +138,10 @@ class Feed extends Component {
     event.preventDefault();
 
     const graphQuery = {
-      query: `mutation {
-          setUserStatus(newStatus:"${this.state.status}")
-        }`
+      query: `mutation updateUserStatus($status: String!) {
+          setUserStatus(newStatus:$status)
+        }`,
+      variables: { status: this.state.status }
     };
 
     fetch('http://localhost:8080/graphql', {
@@ -152,7 +156,7 @@ class Feed extends Component {
         return res.json();
       })
       .then(resData => {
-        if(resData.errors){
+        if (resData.errors) {
           console.log(resData)
           throw new Error('Unable to update user status!');
         }
@@ -211,6 +215,9 @@ class Feed extends Component {
         // Get the path to the saved image. We will include this in the query, next.
         // graphql will not accept query containing double backslash. Here we double up
         // on the backslash.
+
+        console.log(resData)
+
         let imageUrl = '';
         if (resData.filePath) {
           imageUrl = resData.filePath.replace('\\', '\\\\');
@@ -221,8 +228,11 @@ class Feed extends Component {
         if (this.state.editPost) {
           graphQuery = {
             query: `
-            mutation {
-              updatePost(id: "${this.state.editPost._id}", postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "${imageUrl}"}) {
+            mutation doUpdatePost($id:ID!, $title:String!, $content:String!, $imageUrl:String) {
+              updatePost(
+                id: $id, 
+                postInput: {title: $title, content: $content, imageUrl: $imageUrl}
+              ) {
                 _id
                 title
                 content
@@ -231,15 +241,21 @@ class Feed extends Component {
                 createdAt
               }
           }
-          `
+          `,
+            variables: {
+              id: this.state.editPost._id,
+              title: postData.title,
+              content: postData.content,
+              imageURL: imageUrl
+            }
           }; // graphquery
         } else {
           graphQuery = {
-            query: `mutation {
+            query: `mutation doCreatePost($title:String!, $content:String!, $imageUrl:String!) {
                       createPost(postInput: {
-                        title: "${postData.title}", 
-                        content: "${postData.content}", 
-                        imageUrl: "${imageUrl}"}) {
+                        title: $title, 
+                        content: $content, 
+                        imageUrl: $imageUrl}) {
                           _id
                           title
                           content
@@ -247,7 +263,12 @@ class Feed extends Component {
                           creator {name}
                           createdAt
                       }
-                    }`
+                    }`,
+            variables: {
+              title: postData.title,
+              content: postData.content,
+              imageUrl: imageUrl
+            }
           } // graphquery
         } // else
 
@@ -266,7 +287,8 @@ class Feed extends Component {
       })
       .then(resData => {
         if (resData.errors) {
-          throw new Error("Login failed.");
+          console.log(resData);
+          throw new Error("An error occured while attempting to update the post.");
         }
         return resData;
       })
@@ -288,6 +310,7 @@ class Feed extends Component {
         };
         this.setState(prevState => {
           let updatedPosts = [...prevState.posts];
+          let updatedTotalPosts = prevState.totalPosts;
           if (prevState.editPost) {
             const postIndex = prevState.posts.findIndex(p => p._id === prevState.editPost._id);
             updatedPosts[postIndex] = post;
@@ -300,12 +323,14 @@ class Feed extends Component {
               updatedPosts.pop();
             }
             updatedPosts.unshift(post);
+            updatedTotalPosts++;
           }
           return {
             posts: updatedPosts,
             isEditing: false,
             editPost: null,
-            editLoading: false
+            editLoading: false,
+            totalPosts: updatedTotalPosts
           };
         });
       })
@@ -328,12 +353,14 @@ class Feed extends Component {
 
     const graphQuery = {
       query: `
-      mutation {
-        deletePost(id:"${postId}"){
+      mutation doDeletePost($id:ID!){
+        deletePost(id:$id){
           _id
         }
       }
-    `};
+    `,
+      variables: {id: postId}
+    };
 
     fetch('http://localhost:8080/graphql/', {
       method: 'POST',
